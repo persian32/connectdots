@@ -40,6 +40,17 @@
   .btn-gold:hover{filter:brightness(.94);}
   .count{font-size:13px; color:var(--ink-soft);}
 
+  .rosterpanel{background:#F1F3EF; border-bottom:1px solid var(--line);}
+  .rp-inner{max-width:900px; margin:0 auto; padding:16px 22px;}
+  .rp-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px;}
+  .rp-head strong{font-size:14.5px; color:var(--pine-deep);}
+  .rp-hint{font-size:12.5px; color:var(--ink-soft);}
+  #rosterText{width:100%; min-height:150px; font-family:var(--sans); font-size:14px; line-height:1.7;
+    border:1px solid var(--line-strong); border-radius:8px; padding:11px 13px; resize:vertical; background:#fff;}
+  #rosterText:focus{border-color:var(--pine); box-shadow:0 0 0 3px rgba(51,70,63,.12); outline:none;}
+  .rp-actions{display:flex; align-items:center; gap:10px; margin-top:10px;}
+  .rp-status{font-size:13px; color:var(--ink-soft); flex:1;}
+
   main{display:grid; grid-template-columns:340px 1fr; gap:0; height:calc(100vh - 61px);}
   @media (max-width:760px){ main{grid-template-columns:1fr; height:auto;} .detail{border-left:none; border-top:1px solid var(--line);} }
 
@@ -91,8 +102,24 @@
   </div>
   <span class="count" id="count"></span>
   <span class="spacer"></span>
+  <button class="btn-ghost" id="rosterBtn">명단 관리</button>
   <button class="btn-gold" id="exportBtn">엑셀 내보내기</button>
 </header>
+
+<div class="rosterpanel" id="rosterPanel" style="display:none;">
+  <div class="rp-inner">
+    <div class="rp-head">
+      <strong>명단 등록 · <span id="rpCode">반 코드 미선택</span></strong>
+      <span class="rp-hint">엑셀에서 <b>번호 · 이름</b> 두 열을 복사해 붙여넣거나, 한 줄에 <b>번호 이름</b> 형식으로 입력하세요.</span>
+    </div>
+    <textarea id="rosterText" placeholder="1&#9;강도윤&#10;2&#9;김서준&#10;3&#9;김하은"></textarea>
+    <div class="rp-actions">
+      <span class="rp-status" id="rpStatus"></span>
+      <button class="btn-gold" id="rosterSave">이 반 명단 저장</button>
+      <button class="btn-ghost" id="rosterClose">닫기</button>
+    </div>
+  </div>
+</div>
 
 <main>
   <aside class="list">
@@ -100,16 +127,16 @@
     <div id="listBody"></div>
   </aside>
   <section class="detail" id="detail">
-    <div class="empty">반 코드를 입력하고 '불러오기'를 누르세요.<br>학생이 저장한 내용이 여기 실시간으로 나타납니다.</div>
+    <div class="empty">반 코드를 입력하고 '불러오기'를 누르세요.<br>명단을 먼저 등록하려면 오른쪽 위 '명단 관리'를 누르세요.</div>
   </section>
 </main>
 
-<div class="foot">테스트 모드로 연결됨 · 보안 규칙은 다음 단계에서 설정 예정 · 창체 1200바이트 기준</div>
+<div class="foot">보안 규칙 적용됨 · 명단은 '명단 관리'에서 반별로 등록 · 창체 1200바이트 기준</div>
 <div class="toast" id="toast"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-  import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+  import { getFirestore, collection, query, where, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBcW7NxHLPWaO1OIbDGCDBIBELnw_PmOmk",
@@ -122,10 +149,28 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  let unsub=null, students=[], currentCode="", selectedName=null;
+  let unsub=null, students=[], currentCode="", roster=[], selectedId=null;
 
-  const bigQuestions = {}; // placeholder if needed
   const v = (d,k)=> (d && d[k] ? String(d[k]).trim() : "");
+  function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+  function respByNumber(no){ return students.find(s=> s.number!=null && String(s.number)===String(no)); }
+  function buildRows(){
+    const rows=[]; const rnos=new Set();
+    roster.forEach(r=>{ rnos.add(String(r.no)); rows.push({key:'r'+r.no, no:String(r.no), name:r.name, rec:respByNumber(r.no)||null, orphan:false}); });
+    students.forEach(s=>{
+      const no = s.number!=null ? String(s.number) : "";
+      if(no && rnos.has(no)) return;                 // 명단으로 이미 표시됨
+      rows.push({key:'o'+(no||s.name), no: no||'—', name:s.name, rec:s, orphan:true});
+    });
+    rows.sort((a,b)=>{
+      if(a.orphan!==b.orphan) return a.orphan?1:-1;
+      const na=parseInt(a.no,10), nb=parseInt(b.no,10);
+      if(!isNaN(na)&&!isNaN(nb)) return na-nb;
+      return String(a.name).localeCompare(String(b.name),'ko');
+    });
+    return rows;
+  }
 
   // 나이스 EUC-KR 근사 바이트: 한글 2, 그 외 1
   function neisBytes(s){
@@ -169,20 +214,26 @@
 
   function renderList(){
     const body = document.getElementById('listBody');
-    document.getElementById('count').textContent = students.length ? students.length+'명 저장됨' : '';
-    if(!students.length){ body.innerHTML = '<div style="padding:18px; color:#9C9683; font-size:13px;">아직 저장한 학생이 없습니다.</div>'; return; }
-    body.innerHTML = students.map(s=>{
-      const n = stagesDone(s.data);
+    const rows = buildRows();
+    const done = rows.filter(r=>r.rec && stagesDone(r.rec.data)>0).length;
+    const total = roster.length || rows.length;
+    document.getElementById('count').textContent = total ? (done+' / '+total+'명 참여') : '';
+    if(!rows.length){ body.innerHTML = '<div style="padding:18px; color:#9C9683; font-size:13px;">명단도 저장 기록도 없습니다. 오른쪽 위 \'명단 관리\'로 명단을 먼저 등록하세요.</div>'; return; }
+    body.innerHTML = rows.map(r=>{
+      const n = r.rec ? stagesDone(r.rec.data) : 0;
       const pct = Math.round(n/5*100);
-      const sel = s.name===selectedName ? ' sel' : '';
-      return '<div class="srow'+sel+'" data-name="'+encodeURIComponent(s.name)+'">'
-        + '<div class="nm">'+escapeHtml(s.name)+'</div>'
-        + '<div class="meta">'+n+'/5 단계 · '+fmtTime(s.updatedAt)+'</div>'
+      const sel = r.key===selectedId ? ' sel' : '';
+      const noTag = r.no!=='—' ? (r.no+'번 ') : '';
+      const meta = r.rec ? (n+'/5 단계 · '+fmtTime(r.rec.updatedAt)) : '<span style="color:#B4462F">미입력</span>';
+      const orphan = r.orphan ? ' <span style="font-size:11px;color:#B4462F">(명단 외)</span>' : '';
+      return '<div class="srow'+sel+'" data-key="'+escapeAttr(r.key)+'">'
+        + '<div class="nm">'+escapeHtml(noTag+r.name)+orphan+'</div>'
+        + '<div class="meta">'+meta+'</div>'
         + '<div class="bar'+(n===5?' full':'')+'"><i style="width:'+pct+'%"></i></div>'
         + '</div>';
     }).join('');
     body.querySelectorAll('.srow').forEach(el=>{
-      el.addEventListener('click', ()=>{ selectedName = decodeURIComponent(el.dataset.name); renderList(); renderDetail(); });
+      el.addEventListener('click', ()=>{ selectedId = el.dataset.key; renderList(); renderDetail(); });
     });
   }
 
@@ -193,8 +244,15 @@
 
   function renderDetail(){
     const el = document.getElementById('detail');
-    const rec = students.find(s=>s.name===selectedName);
-    if(!rec){ el.innerHTML = '<div class="empty">학생을 선택하세요.</div>'; return; }
+    const row = buildRows().find(r=>r.key===selectedId);
+    if(!row){ el.innerHTML = '<div class="empty">학생을 선택하세요.</div>'; return; }
+    const noTag = row.no!=='—' ? (row.no+'번 ') : '';
+    if(!row.rec){
+      el.innerHTML = '<div class="dname">'+escapeHtml(noTag+row.name)+'</div>'
+        + '<div class="dsub">아직 저장한 내용이 없습니다. (미입력)</div>';
+      return;
+    }
+    const rec = row.rec;
     const d = rec.data || {};
     const text = assembleText(rec);
     const bytes = neisBytes(text);
@@ -208,7 +266,7 @@
     });
 
     el.innerHTML =
-      '<div class="dname">'+escapeHtml(rec.name)+'</div>'
+      '<div class="dname">'+escapeHtml(noTag+rec.name)+'</div>'
       + '<div class="dsub">'+escapeHtml(rec.classCode||'')+' · 마지막 저장 '+fmtTime(rec.updatedAt)+' · '+stagesDone(d)+'/5 단계</div>'
 
       + '<div class="assembled-wrap">'
@@ -242,27 +300,61 @@
     });
   }
 
-  function loadClass(code){
-    currentCode = code;
-    selectedName = null;
+  async function loadClass(code){
+    currentCode = code; selectedId = null;
     if(unsub){ unsub(); unsub=null; }
+    document.getElementById('rpCode').textContent = code ? (code+'반') : '반 코드 미선택';
+    try{
+      const rs = await getDoc(doc(db,'classes',code));
+      roster = (rs.exists() && Array.isArray(rs.data().roster)) ? rs.data().roster : [];
+      document.getElementById('rosterText').value = roster.map(r=>r.no+'\t'+r.name).join('\n');
+    }catch(e){ console.warn(e); roster=[]; }
     const ref = collection(db,'responses');
     const q = code ? query(ref, where('classCode','==',code)) : ref;
     document.getElementById('listBody').innerHTML = '<div style="padding:18px; color:#9C9683; font-size:13px;">불러오는 중…</div>';
     unsub = onSnapshot(q, snap=>{
-      students = snap.docs.map(doc=>doc.data()).filter(x=>x && x.name);
-      students.sort((a,b)=> String(a.name).localeCompare(String(b.name),'ko'));
+      students = snap.docs.map(dd=>dd.data()).filter(x=>x && x.name);
       renderList();
-      if(selectedName) renderDetail();
+      if(selectedId) renderDetail();
     }, err=>{
       console.warn(err);
       document.getElementById('listBody').innerHTML = '<div style="padding:18px; color:#B4462F; font-size:13px;">불러오기 실패. 콘솔을 확인하세요.</div>';
     });
   }
 
+  function parseRoster(text){
+    const out=[];
+    (text||"").split(/\n/).forEach(line=>{
+      const t=line.trim(); if(!t) return;
+      const parts=t.split(/[\t,]+|\s+/).filter(Boolean);
+      if(parts.length<2) return;
+      const no=parts[0].replace(/[^0-9]/g,'');
+      const name=parts.slice(1).join(' ');
+      if(!no||!name) return;
+      out.push({no, name});
+    });
+    return out;
+  }
+  async function saveRoster(){
+    const code=document.getElementById('code').value.trim();
+    const st=document.getElementById('rpStatus');
+    if(!code){ st.textContent='먼저 위쪽 반 코드 칸에 반 코드를 입력하세요.'; return; }
+    const list=parseRoster(document.getElementById('rosterText').value);
+    if(!list.length){ st.textContent='번호와 이름을 한 줄에 하나씩 넣어 주세요.'; return; }
+    st.textContent='저장 중…';
+    try{
+      await setDoc(doc(db,'classes',code), { classCode:code, roster:list, updatedAt: new Date().toISOString() });
+      st.textContent=code+'반 명단 '+list.length+'명 저장됨.';
+      roster=list; currentCode=code;
+      document.getElementById('rpCode').textContent=code+'반';
+      renderList();
+    }catch(e){ console.warn(e); st.textContent='저장 실패: '+(e.code||e.message||''); }
+  }
+
   function exportXlsx(){
     if(!students.length){ toast('내보낼 학생이 없습니다'); return; }
-    const rows = students.map(s=>({ '이름': s.name, '글내용(통합)': assembleText(s) }));
+    const list=[...students].sort((a,b)=>{ const na=parseInt(a.number,10),nb=parseInt(b.number,10); if(!isNaN(na)&&!isNaN(nb))return na-nb; return String(a.name).localeCompare(String(b.name),'ko'); });
+    const rows = list.map(s=>({ '이름': s.name, '글내용(통합)': assembleText(s) }));
     const ws = XLSX.utils.json_to_sheet(rows, { header:['이름','글내용(통합)'] });
     ws['!cols'] = [{wch:12},{wch:90}];
     const wb = XLSX.utils.book_new();
@@ -282,6 +374,15 @@
   document.getElementById('loadBtn').addEventListener('click', ()=> loadClass(document.getElementById('code').value.trim()));
   document.getElementById('code').addEventListener('keydown', e=>{ if(e.key==='Enter') loadClass(e.target.value.trim()); });
   document.getElementById('exportBtn').addEventListener('click', exportXlsx);
+  document.getElementById('rosterBtn').addEventListener('click', ()=>{
+    const p=document.getElementById('rosterPanel');
+    const open = p.style.display==='none';
+    p.style.display = open ? 'block' : 'none';
+    const code=document.getElementById('code').value.trim();
+    document.getElementById('rpCode').textContent = code ? (code+'반') : '반 코드 미선택';
+  });
+  document.getElementById('rosterClose').addEventListener('click', ()=>{ document.getElementById('rosterPanel').style.display='none'; });
+  document.getElementById('rosterSave').addEventListener('click', saveRoster);
 </script>
 </body>
 </html>
