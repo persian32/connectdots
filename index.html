@@ -49,6 +49,15 @@
   .btn-check:hover{border-color:var(--pine); background:#F1F3EF;}
   .err{font-size:13px; color:#B4462F; margin:8px 2px 0;}
   .ok-note{font-size:13px; color:#2E5C3E; margin:8px 2px 0;}
+  .hint2{font-size:12px; color:var(--ink-soft); margin:10px 2px 0; line-height:1.55;}
+  .btn-solid2{flex:1; font-family:var(--sans); font-size:15px; font-weight:600; color:#F7F6F0;
+    background:var(--pine); border:1px solid var(--pine); border-radius:10px; padding:11px 0; cursor:pointer;}
+  .btn-solid2:hover{background:var(--pine-deep);}
+  .btn-ghost2{flex:1; font-family:var(--sans); font-size:15px; font-weight:600; color:var(--pine);
+    background:transparent; border:1px solid var(--line-strong); border-radius:10px; padding:11px 0; cursor:pointer;}
+  .btn-ghost2:hover{border-color:var(--pine); background:#F1F3EF;}
+  .grouptag{align-self:center; font-size:11.5px; font-weight:600; color:var(--marigold);
+    background:var(--marigold-bg); border-radius:20px; padding:4px 11px; white-space:nowrap;}
 
   /* header */
   .topbar{display:flex; align-items:baseline; gap:10px; margin-bottom:22px;}
@@ -167,6 +176,7 @@
   <div class="topbar">
     <span class="brand">이음</span>
     <span class="brand-sub">진로 독서 × 융합 나눔</span>
+    <span class="grouptag" id="groupTag" style="display:none;"></span>
     <span class="cloud" id="cloudStatus" style="display:none;">저장됨</span>
   </div>
 
@@ -196,11 +206,26 @@
         <label for="name">이름</label>
         <select id="name"><option value="">이름을 선택하세요</option></select>
         <label for="sno">출석번호</label>
-        <input type="text" id="sno" inputmode="numeric" placeholder="예: 3" autocomplete="off">
+        <div class="rowline">
+          <input type="text" id="sno" inputmode="numeric" placeholder="예: 3" autocomplete="off">
+          <button type="button" class="btn-check" id="idCheckBtn" onclick="checkId()">확인</button>
+        </div>
         <p class="err" id="idErr" style="display:none;"></p>
       </div>
+
+      <div id="groupFields" style="display:none;">
+        <label for="gname">모둠명 <span class="hint">— 우리 팀 이름을 정해요 (2~4명)</span></label>
+        <input type="text" id="gname" placeholder="예: lady's future" autocomplete="off">
+        <p class="ok-note" id="groupNote" style="display:none;"></p>
+        <div class="rowline" style="margin-top:12px;">
+          <button type="button" class="btn-solid2" id="createBtn" onclick="doCreateGroup()">모둠 만들기</button>
+          <button type="button" class="btn-ghost2" id="joinBtn" onclick="doJoinGroup()">모둠 참여</button>
+        </div>
+        <p class="err" id="groupErr" style="display:none;"></p>
+        <p class="hint2">처음 만드는 사람이 방장이 되고, 친구들은 같은 모둠명으로 '모둠 참여'를 누르면 됩니다.</p>
+      </div>
     </div>
-    <small class="foot">이름과 출석번호가 명단과 맞아야 들어갈 수 있습니다</small>
+    <small class="foot">이름·출석번호는 명단과 맞아야 하고, 모둠은 최대 4명입니다</small>
   </section>
 
   <!-- 1차시 -->
@@ -402,6 +427,70 @@
     return true;
   }
 
+  var pendingRec = null;  // 로그인 후 불러온 학생 기록
+  function checkId(){
+    if(!validateEntry()) return;
+    var btn=document.getElementById('idCheckBtn'); btn.textContent='확인 중…';
+    var reveal=function(rec){
+      pendingRec = rec || null;
+      document.getElementById('name').disabled=true;
+      document.getElementById('sno').disabled=true;
+      document.getElementById('idCheckBtn').disabled=true;
+      document.getElementById('groupFields').style.display='block';
+      if(rec && rec.groupName){
+        document.getElementById('gname').value = rec.groupName;
+        var note=document.getElementById('groupNote');
+        note.textContent = "이전에 '"+rec.groupName+"' 모둠이었어요. '모둠 참여'를 누르면 이어집니다.";
+        note.style.display='block';
+      }
+    };
+    if(!window.cloud || !window.cloud.ready){ btn.textContent='확인'; reveal(null); return; }
+    window.cloud.load(student.classCode, student.number)
+      .then(function(rec){ btn.textContent='확인'; reveal(rec); })
+      .catch(function(e){ console.warn(e); btn.textContent='확인'; reveal(null); });
+  }
+
+  function setGroupBusy(b){
+    document.getElementById('createBtn').disabled=b;
+    document.getElementById('joinBtn').disabled=b;
+  }
+  function doCreateGroup(){
+    var raw=document.getElementById('gname').value.trim();
+    var ge=document.getElementById('groupErr'); ge.style.display='none';
+    if(!raw){ ge.textContent='모둠명을 입력해 주세요.'; ge.style.display='block'; return; }
+    if(!window.cloud || !window.cloud.ready){ ge.textContent='연결 대기 중입니다. 잠시 후 다시 시도하세요.'; ge.style.display='block'; return; }
+    setGroupBusy(true);
+    window.cloud.createGroup(student.classCode, raw, {number:student.number, name:student.name})
+      .then(function(g){ student.group=g; enterActivity(); })
+      .catch(function(e){ setGroupBusy(false);
+        if(e && e.code==='exists') ge.textContent="이미 있는 모둠명이에요. 그 모둠에 들어가려면 '모둠 참여'를, 아니면 다른 이름으로 만들어 주세요.";
+        else ge.textContent='모둠 만들기 실패: '+((e&&(e.code||e.message))||''); ge.style.display='block';
+      });
+  }
+  function doJoinGroup(){
+    var raw=document.getElementById('gname').value.trim();
+    var ge=document.getElementById('groupErr'); ge.style.display='none';
+    if(!raw){ ge.textContent='모둠명을 입력해 주세요.'; ge.style.display='block'; return; }
+    if(!window.cloud || !window.cloud.ready){ ge.textContent='연결 대기 중입니다. 잠시 후 다시 시도하세요.'; ge.style.display='block'; return; }
+    setGroupBusy(true);
+    window.cloud.joinGroup(student.classCode, raw, {number:student.number, name:student.name})
+      .then(function(g){ student.group=g; enterActivity(); })
+      .catch(function(e){ setGroupBusy(false);
+        if(e && e.code==='notfound') ge.textContent="그 이름의 모둠이 아직 없어요. 새로 만들려면 '모둠 만들기'를 누르세요.";
+        else if(e && e.code==='full') ge.textContent='이 모둠은 정원(4명)이 찼어요. 다른 모둠명을 입력하세요.';
+        else ge.textContent='모둠 참여 실패: '+((e&&(e.code||e.message))||''); ge.style.display='block';
+      });
+  }
+  function enterActivity(){
+    if(student.group){
+      var t=document.getElementById('groupTag');
+      t.textContent='모둠 '+student.group.name; t.style.display='inline-block';
+    }
+    cur = 1; show();
+    if(pendingRec && pendingRec.data) applyAll(pendingRec.data);
+    setCloudStatus('saved');
+  }
+
   function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function escAttr(s){ return escHtml(s).replace(/"/g,'&quot;'); }
 
@@ -540,12 +629,11 @@
       document.getElementById(id).classList.toggle('active', i===cur);
     });
     if(cur===6) returnToFinal=false;
-    document.getElementById('nav').style.display = 'block';
+    document.getElementById('nav').style.display = (cur===0) ? 'none' : 'block';
     document.getElementById('prevBtn').style.visibility = cur<=1 ? 'hidden':'visible';
     var next=document.getElementById('nextBtn');
     next.style.display='';
-    if(cur===0) next.textContent='시작하기';
-    else if(cur===6){ next.style.display='none'; }
+    if(cur===6){ next.style.display='none'; }
     else if(returnToFinal) next.textContent='완료로 돌아가기';
     else if(cur===5) next.textContent='활동 마치기';
     else next.textContent='다음';
@@ -562,26 +650,22 @@
   }
 
   function go(dir){
-    if(cur===0 && dir===1){
-      if(!validateEntry()) return;
-    }
+    if(cur===0) return;   // 입장 화면 이동은 모둠 결성 버튼이 담당
     if(returnToFinal && dir===1 && cur<6){   // 고치기 끝 → 곧장 완료 화면으로
       if(student.name) saveNow();
       returnToFinal=false;
       cur=6; show();
       return;
     }
-    var leavingEntry = (cur===0 && dir===1);
-    cur = Math.max(0, Math.min(stages.length-1, cur+dir));
+    cur = Math.max(1, Math.min(stages.length-1, cur+dir));
     show();
-    if(leavingEntry) startStudent();
-    else if(student.name) saveNow();
+    if(student.name) saveNow();
   }
   show();
 </script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBcW7NxHLPWaO1OIbDGCDBIBELnw_PmOmk",
@@ -610,6 +694,43 @@
       async loadRoster(classCode){
         const snap = await getDoc(doc(db, "classes", classCode));
         return snap.exists() ? snap.data() : null;
+      },
+      async createGroup(classCode, nameRaw, member){
+        const key = nameRaw.trim().toLowerCase().replace(/\s+/g, " ");
+        const gid = classCode + "__" + encodeURIComponent(key);
+        const ref = doc(db, "groups", gid);
+        await runTransaction(db, async (tx)=>{
+          const s = await tx.get(ref);
+          if(s.exists()){ const e=new Error("exists"); e.code="exists"; throw e; }
+          tx.set(ref, { classCode, name: nameRaw.trim(), nameKey: key,
+            members: [{number:String(member.number), name:member.name}], updatedAt: serverTimestamp() });
+        });
+        await setDoc(doc(db, "responses", classCode+"__"+member.number),
+          { classCode, number:String(member.number), name:member.name, groupName:nameRaw.trim(), groupKey:key, data:{} },
+          { merge:true });
+        return { name: nameRaw.trim(), key };
+      },
+      async joinGroup(classCode, nameRaw, member){
+        const key = nameRaw.trim().toLowerCase().replace(/\s+/g, " ");
+        const gid = classCode + "__" + encodeURIComponent(key);
+        const ref = doc(db, "groups", gid);
+        let outName = "";
+        await runTransaction(db, async (tx)=>{
+          const s = await tx.get(ref);
+          if(!s.exists()){ const e=new Error("notfound"); e.code="notfound"; throw e; }
+          const g = s.data(); outName = g.name;
+          const members = Array.isArray(g.members) ? g.members : [];
+          const already = members.some(m=>String(m.number)===String(member.number));
+          if(!already){
+            if(members.length >= 4){ const e=new Error("full"); e.code="full"; throw e; }
+            members.push({number:String(member.number), name:member.name});
+            tx.update(ref, { members, updatedAt: serverTimestamp() });
+          }
+        });
+        await setDoc(doc(db, "responses", classCode+"__"+member.number),
+          { classCode, number:String(member.number), name:member.name, groupName:outName, groupKey:key, data:{} },
+          { merge:true });
+        return { name: outName, key };
       }
     };
     window.dispatchEvent(new Event("cloud-ready"));
