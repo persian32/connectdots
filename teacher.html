@@ -224,7 +224,7 @@
       const pct = Math.round(n/5*100);
       const sel = r.key===selectedId ? ' sel' : '';
       const noTag = r.no!=='—' ? (r.no+'번 ') : '';
-      const meta = r.rec ? (n+'/5 단계 · '+fmtTime(r.rec.updatedAt)) : '<span style="color:#B4462F">미입력</span>';
+      const meta = r.rec ? ((r.rec.groupName? '모둠 '+escapeHtml(r.rec.groupName)+' · ':'') + n+'/5 단계 · '+fmtTime(r.rec.updatedAt)) : '<span style="color:#B4462F">미입력</span>';
       const orphan = r.orphan ? ' <span style="font-size:11px;color:#B4462F">(명단 외)</span>' : '';
       return '<div class="srow'+sel+'" data-key="'+escapeAttr(r.key)+'">'
         + '<div class="nm">'+escapeHtml(noTag+r.name)+orphan+'</div>'
@@ -267,7 +267,7 @@
 
     el.innerHTML =
       '<div class="dname">'+escapeHtml(noTag+rec.name)+'</div>'
-      + '<div class="dsub">'+escapeHtml(rec.classCode||'')+' · 마지막 저장 '+fmtTime(rec.updatedAt)+' · '+stagesDone(d)+'/5 단계</div>'
+      + '<div class="dsub">'+escapeHtml(rec.classCode||'')+(rec.groupName? ' · 모둠 '+escapeHtml(rec.groupName):'')+' · 마지막 저장 '+fmtTime(rec.updatedAt)+' · '+stagesDone(d)+'/5 단계</div>'
 
       + '<div class="assembled-wrap">'
         + '<div class="lbl"><span>글내용(통합) — 창체 스킬로 넘길 원문</span>'
