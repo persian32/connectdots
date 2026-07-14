@@ -42,6 +42,14 @@
   }
   ::placeholder{color:#A9A493;}
 
+  .rowline{display:flex; gap:8px; align-items:stretch;}
+  .rowline input{flex:1;}
+  .btn-check{font-family:var(--sans); font-size:14.5px; font-weight:600; color:var(--pine);
+    background:transparent; border:1px solid var(--line-strong); border-radius:10px; padding:0 16px; cursor:pointer; white-space:nowrap;}
+  .btn-check:hover{border-color:var(--pine); background:#F1F3EF;}
+  .err{font-size:13px; color:#B4462F; margin:8px 2px 0;}
+  .ok-note{font-size:13px; color:#2E5C3E; margin:8px 2px 0;}
+
   /* header */
   .topbar{display:flex; align-items:baseline; gap:10px; margin-bottom:22px;}
   .brand{font-family:var(--serif); font-weight:700; font-size:20px; color:var(--pine-deep);}
@@ -170,15 +178,21 @@
     <p class="lead">각자 자기 진로의 책을 읽고, 하나의 질문에 대한 내 분야의 답을 찾아, 다른 진로의 친구들과 나누고 연결합니다.</p>
     <div class="card">
       <label for="code">반 코드</label>
-      <input type="text" id="code" placeholder="예: 2-3" autocomplete="off">
-      <label for="name">이름</label>
-      <select id="name">
-        <option value="">명단에서 이름을 선택하세요</option>
-        <option>강도윤</option><option>김서준</option><option>김하은</option>
-        <option>박지우</option><option>이수아</option><option>정민재</option>
-      </select>
+      <div class="rowline">
+        <input type="text" id="code" placeholder="예: 2-7" autocomplete="off">
+        <button type="button" class="btn-check" id="checkBtn" onclick="checkClass()">반 확인</button>
+      </div>
+      <p class="err" id="codeErr" style="display:none;"></p>
+
+      <div id="idFields" style="display:none;">
+        <label for="name">이름</label>
+        <select id="name"><option value="">이름을 선택하세요</option></select>
+        <label for="sno">출석번호</label>
+        <input type="text" id="sno" inputmode="numeric" placeholder="예: 3" autocomplete="off">
+        <p class="err" id="idErr" style="display:none;"></p>
+      </div>
     </div>
-    <small class="foot">이 화면은 시제품입니다 · 입력은 저장되지 않습니다</small>
+    <small class="foot">이름과 출석번호가 명단과 맞아야 들어갈 수 있습니다</small>
   </section>
 
   <!-- 1차시 -->
@@ -330,7 +344,8 @@
   var FIELD_IDS = ["career","subq","bookTitle","bookAuthor","answer","quote",
     "f1name","f1field","f1view","f2name","f2field","f2view","f3name","f3field","f3view",
     "seed","c1","c2","cLink","r1","r2","r3"];
-  var student = {classCode:"", name:""};
+  var student = {classCode:"", number:"", name:""};
+  var roster = null;   // [{no, name}, ...] — 반 확인 시 로드
 
   function setCloudStatus(state){
     var el=document.getElementById('cloudStatus');
@@ -338,6 +353,49 @@
     el.className='cloud '+state;
     el.textContent = state==='saving' ? '저장 중…' : (state==='saved' ? '저장됨' : '오프라인(로컬)');
   }
+
+  function checkClass(){
+    var code = document.getElementById('code').value.trim();
+    var codeErr = document.getElementById('codeErr');
+    var idFields = document.getElementById('idFields');
+    codeErr.style.display='none'; idFields.style.display='none'; roster=null;
+    if(!code){ codeErr.textContent='반 코드를 입력해 주세요.'; codeErr.style.display='block'; return; }
+    if(!window.cloud || !window.cloud.ready){ codeErr.textContent='연결 대기 중입니다. 잠시 후 다시 눌러 주세요.'; codeErr.style.display='block'; return; }
+    document.getElementById('checkBtn').textContent='확인 중…';
+    window.cloud.loadRoster(code).then(function(rec){
+      document.getElementById('checkBtn').textContent='반 확인';
+      if(!rec || !Array.isArray(rec.roster) || !rec.roster.length){
+        codeErr.textContent='등록되지 않은 반 코드입니다. 선생님께 확인하세요.'; codeErr.style.display='block'; return;
+      }
+      roster = rec.roster;
+      var sel = document.getElementById('name');
+      sel.innerHTML = '<option value="">이름을 선택하세요</option>' +
+        roster.map(function(r){ return '<option value="'+escAttr(r.name)+'">'+escHtml(r.name)+'</option>'; }).join('');
+      idFields.style.display='block';
+    }).catch(function(e){
+      document.getElementById('checkBtn').textContent='반 확인';
+      console.warn(e); codeErr.textContent='반 정보를 불러오지 못했습니다. 잠시 후 다시 시도하세요.'; codeErr.style.display='block';
+    });
+  }
+
+  function validateEntry(){
+    var idErr = document.getElementById('idErr');
+    idErr.style.display='none';
+    if(!roster){ document.getElementById('codeErr').textContent='먼저 반 확인을 눌러 주세요.'; document.getElementById('codeErr').style.display='block'; return false; }
+    var name = document.getElementById('name').value;
+    var no = document.getElementById('sno').value.trim();
+    if(!name){ idErr.textContent='이름을 선택해 주세요.'; idErr.style.display='block'; return false; }
+    if(!no){ idErr.textContent='출석번호를 입력해 주세요.'; idErr.style.display='block'; return false; }
+    var hit = roster.find(function(r){ return String(r.name)===name && String(r.no)===no; });
+    if(!hit){ idErr.textContent='이름과 출석번호가 명단과 맞지 않습니다.'; idErr.style.display='block'; return false; }
+    student.classCode = document.getElementById('code').value.trim();
+    student.number = no;
+    student.name = name;
+    return true;
+  }
+
+  function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escAttr(s){ return escHtml(s).replace(/"/g,'&quot;'); }
 
   function collectAll(){
     var d={};
@@ -352,19 +410,17 @@
     if((d.f3name||d.f3field||d.f3view)){ document.getElementById('friend3').style.display='block'; document.getElementById('addFriend').style.display='none'; }
   }
   function saveNow(){
-    if(!student.name) return;
+    if(!student.number) return;
     if(!window.cloud || !window.cloud.ready){ setCloudStatus('offline'); return; }
     setCloudStatus('saving');
-    window.cloud.save(student.classCode, student.name, collectAll())
+    window.cloud.save(student.classCode, student.number, student.name, collectAll())
       .then(function(){ setCloudStatus('saved'); })
       .catch(function(e){ console.warn('save failed', e); setCloudStatus('offline'); });
   }
   function startStudent(){
-    student.classCode = document.getElementById('code').value.trim();
-    student.name = document.getElementById('name').value;
     if(!window.cloud || !window.cloud.ready){ setCloudStatus('offline'); return; }
     setCloudStatus('saving');
-    window.cloud.load(student.classCode, student.name)
+    window.cloud.load(student.classCode, student.number)
       .then(function(rec){ if(rec && rec.data){ applyAll(rec.data); } setCloudStatus('saved'); })
       .catch(function(e){ console.warn('load failed', e); setCloudStatus('offline'); });
   }
@@ -499,7 +555,7 @@
 
   function go(dir){
     if(cur===0 && dir===1){
-      if(!document.getElementById('name').value){ alert('명단에서 이름을 선택해 주세요.'); return; }
+      if(!validateEntry()) return;
     }
     if(returnToFinal && dir===1 && cur<6){   // 고치기 끝 → 곧장 완료 화면으로
       if(student.name) saveNow();
@@ -531,16 +587,20 @@
   try {
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const keyOf = (classCode, name) => (classCode || "review") + "__" + name;
+    const keyOf = (classCode, number) => (classCode || "review") + "__" + number;
     window.cloud = {
       ready: true,
-      async save(classCode, name, data){
-        await setDoc(doc(db, "responses", keyOf(classCode, name)),
-          { classCode: classCode || "", name, data, updatedAt: serverTimestamp() },
+      async save(classCode, number, name, data){
+        await setDoc(doc(db, "responses", keyOf(classCode, number)),
+          { classCode: classCode || "", number: String(number), name, data, updatedAt: serverTimestamp() },
           { merge: true });
       },
-      async load(classCode, name){
-        const snap = await getDoc(doc(db, "responses", keyOf(classCode, name)));
+      async load(classCode, number){
+        const snap = await getDoc(doc(db, "responses", keyOf(classCode, number)));
+        return snap.exists() ? snap.data() : null;
+      },
+      async loadRoster(classCode){
+        const snap = await getDoc(doc(db, "classes", classCode));
         return snap.exists() ? snap.data() : null;
       }
     };
