@@ -284,12 +284,11 @@
         + fld('책이 준 답', d.answer) + fld('인상 깊은 대목', d.quote) + '</div>'
 
       + '<div class="sec"><h4>3차시 · 모둠 나눔</h4>'
-        + (mvSec || '<div class="fld"><div class="v empty">—</div></div>')
-        + fld('융합 씨앗', d.seed) + '</div>'
+        + (mvSec || '<div class="fld"><div class="v empty">—</div></div>') + '</div>'
 
-      + '<div class="sec"><h4>4차시 · 융합 연결</h4>'
-        + fld('만난 분야', (v(d,'c1')||v(d,'c2') ? v(d,'c1')+' ↔ '+v(d,'c2') : ''))
-        + fld('새로 보인 것', d.cLink) + '</div>'
+      + '<div class="sec"><h4>4차시 · 마인드맵 융합 연결</h4>'
+        + fld('내가 이은 연결점', d.cLink)
+        + fld('융합 씨앗(내 아이디어)', d.seed) + '</div>'
 
       + '<div class="sec"><h4>6차시 · 성찰</h4>'
         + fld('① 나눔 전후 변화', d.r1) + fld('② 구체적 연결점', d.r2) + fld('③ 진로로의 회귀', d.r3) + '</div>';
