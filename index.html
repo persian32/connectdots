@@ -181,6 +181,17 @@
   .mm-save{flex:1; font-family:var(--sans); font-weight:600; font-size:14px; color:#F7F6F0; background:var(--pine); border:1px solid var(--pine); border-radius:8px; padding:9px 0; cursor:pointer;}
   .mm-save:hover{background:var(--pine-deep);}
   .mm-cancel{font-family:var(--sans); font-weight:600; font-size:14px; color:var(--pine); background:transparent; border:1px solid var(--line-strong); border-radius:8px; padding:9px 14px; cursor:pointer;}
+  .up-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px;}
+  .up-btn{display:inline-block; font-family:var(--sans); font-size:14px; font-weight:600; color:#F7F6F0;
+    background:var(--pine); border:1px solid var(--pine); border-radius:9px; padding:10px 16px; cursor:pointer;}
+  .up-btn:hover{background:var(--pine-deep);}
+  .up-state{font-size:13px; color:var(--ink-soft);}
+  .up-state.err{color:#B4462F;}
+  .up-state.ok{color:#2E5C3E;}
+  .np-shot{margin-top:14px;}
+  .np-shot img{width:100%; border:1px solid var(--line-strong); border-radius:10px; display:block;}
+  .np-shot-by{font-size:12.5px; color:var(--ink-soft); margin:6px 2px 0;}
+
   .role{border:1px solid var(--line-strong); border-radius:10px; padding:12px 14px; margin-top:12px; background:var(--card);}
   .role.mine{border-color:var(--pine); background:#F1F3EF;}
   .role.locked .role-body{opacity:.55;}
@@ -419,6 +430,20 @@
       </div>
       <p class="hint2">모둠원 전체의 글이 신문 지면 순서대로 모입니다. 복사해서 캔바·미리캔버스 등에 붙여 넣고 꾸미세요.</p>
       <div class="np-preview" id="npPreview">불러오는 중…</div>
+    </div>
+
+    <div class="card">
+      <p class="subhead">완성 신문 제출 <span class="hint">— 모둠에서 한 명만 올리면 됩니다</span></p>
+      <p class="hint2">캔바·미리캔버스 등에서 꾸며 완성한 신문을 이미지(JPG·PNG)로 내려받아 올려 주세요. 올리면 모둠원 모두와 선생님 화면에 나타납니다.</p>
+      <div class="up-row">
+        <label class="up-btn" for="npFile">파일 선택해서 올리기</label>
+        <input type="file" id="npFile" accept="image/*" style="display:none;">
+        <span class="up-state" id="npUpState"></span>
+      </div>
+      <div id="npShot" class="np-shot" style="display:none;">
+        <img id="npShotImg" alt="제출한 모둠 신문">
+        <p class="np-shot-by" id="npShotBy"></p>
+      </div>
     </div>
   </section>
 
@@ -922,7 +947,10 @@
     var unsubMembers = window.cloud.subscribeGroupResponses(student.classCode, student.group.key, function(map){
       npMembersData=map||{}; npRenderPreview();
     });
-    npUnsubs=function(){ try{unsubPaper();}catch(e){} try{unsubMembers();}catch(e){} };
+    var unsubShot = window.cloud.subscribeNewsImage(student.classCode, student.group.key, function(rec){
+      npShowShot(rec);
+    });
+    npUnsubs=function(){ try{unsubPaper();}catch(e){} try{unsubMembers();}catch(e){} try{unsubShot();}catch(e){} };
   }
 
   function npTakeRole(key){
@@ -980,6 +1008,72 @@
     out.push('\n【 광고 】\n'+(ad||'(아직 비어 있음)'));
     box.textContent = out.join('\n');
   }
+
+  // ── 완성 신문 이미지 제출 (Firestore에 압축 저장) ──
+  var NP_MAX_W=1400, NP_TARGET=560000;   // 약 560KB 이하
+
+  function npShrink(file){
+    return new Promise(function(resolve, reject){
+      var img=new Image(), url=URL.createObjectURL(file);
+      img.onload=function(){
+        URL.revokeObjectURL(url);
+        var w=img.width, h=img.height;
+        if(w>NP_MAX_W){ h=Math.round(h*NP_MAX_W/w); w=NP_MAX_W; }
+        var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        var q=0.78, out=cv.toDataURL('image/jpeg', q);
+        while(out.length>NP_TARGET && q>0.35){ q-=0.08; out=cv.toDataURL('image/jpeg', q); }
+        if(out.length>NP_TARGET){
+          var cv2=document.createElement('canvas');
+          cv2.width=Math.round(w*0.7); cv2.height=Math.round(h*0.7);
+          cv2.getContext('2d').drawImage(img,0,0,cv2.width,cv2.height);
+          out=cv2.toDataURL('image/jpeg', 0.6);
+        }
+        if(out.length>NP_TARGET) reject(new Error('too_big')); else resolve(out);
+      };
+      img.onerror=function(){ URL.revokeObjectURL(url); reject(new Error('bad_image')); };
+      img.src=url;
+    });
+  }
+
+  function npShowShot(rec){
+    var box=document.getElementById('npShot');
+    if(rec && rec.dataUrl){
+      document.getElementById('npShotImg').src=rec.dataUrl;
+      document.getElementById('npShotBy').textContent='제출: '+(rec.byName||'')+(rec.at?' · '+rec.at:'');
+      box.style.display='block';
+      document.querySelector('.up-btn').textContent='다시 올리기 (교체)';
+    } else {
+      box.style.display='none';
+      document.querySelector('.up-btn').textContent='파일 선택해서 올리기';
+    }
+  }
+
+  var npFileEl=document.getElementById('npFile');
+  if(npFileEl) npFileEl.addEventListener('change', function(e){
+    var f=e.target.files && e.target.files[0]; if(!f) return;
+    var st=document.getElementById('npUpState');
+    if(!student.group){ st.textContent='모둠 정보가 없습니다.'; st.className='up-state err'; return; }
+    if(!/^image\//.test(f.type)){ st.textContent='이미지 파일(JPG·PNG)만 올릴 수 있어요.'; st.className='up-state err'; return; }
+    st.textContent='이미지 줄이는 중…'; st.className='up-state';
+    npShrink(f).then(function(dataUrl){
+      st.textContent='올리는 중…';
+      var now=new Date();
+      var stamp=(now.getMonth()+1)+'. '+now.getDate()+'. '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+      return window.cloud.saveNewsImage(student.classCode, student.group.key, {
+        dataUrl:dataUrl, byNumber:String(student.number), byName:student.name, at:stamp
+      });
+    }).then(function(){
+      st.textContent='제출 완료!'; st.className='up-state ok';
+    }).catch(function(err){
+      console.warn(err);
+      if(err && err.message==='too_big') st.textContent='이미지가 너무 큽니다. 조금 더 작게 내보내 다시 시도해 주세요.';
+      else if(err && err.message==='bad_image') st.textContent='이미지를 읽지 못했어요. 다른 파일로 시도해 주세요.';
+      else st.textContent='제출에 실패했어요. 잠시 후 다시 시도해 주세요.';
+      st.className='up-state err';
+    }).finally(function(){ npFileEl.value=''; });
+  });
+
 
   function npCopy(){
     var t=document.getElementById('npPreview').textContent||'';
@@ -1139,6 +1233,15 @@
       async savePaper(classCode, groupKey, payload){
         await setDoc(doc(db, "groups", this.gidOf(classCode, groupKey), "paper", "main"),
           Object.assign({}, payload, { updatedAt: serverTimestamp() }), { merge:true });
+      },
+      async saveNewsImage(classCode, groupKey, payload){
+        await setDoc(doc(db, "groups", this.gidOf(classCode, groupKey), "paper", "image"),
+          Object.assign({}, payload, { updatedAt: serverTimestamp() }));
+      },
+      subscribeNewsImage(classCode, groupKey, cb){
+        const ref = doc(db, "groups", this.gidOf(classCode, groupKey), "paper", "image");
+        return onSnapshot(ref, snap=>{ cb(snap.exists()? snap.data() : null); },
+          err=>{ console.warn("news image sub", err); });
       },
       async takeRole(classCode, groupKey, roleKey, member){
         const ref = doc(db, "groups", this.gidOf(classCode, groupKey), "paper", "main");
