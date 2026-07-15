@@ -51,6 +51,14 @@
   .rp-actions{display:flex; align-items:center; gap:10px; margin-top:10px;}
   .rp-status{font-size:13px; color:var(--ink-soft); flex:1;}
 
+  .pp-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px;}
+  .pp-card{background:#fff; border:1px solid var(--line-strong); border-radius:10px; overflow:hidden;}
+  .pp-card img{width:100%; display:block; cursor:pointer; background:#F1F0EA;}
+  .pp-card .pp-meta{padding:8px 10px; font-size:12.5px;}
+  .pp-card .pp-name{font-weight:600; color:var(--pine-deep);}
+  .pp-card .pp-by{color:var(--ink-soft); margin-top:2px;}
+  .pp-card.none{padding:16px 12px; text-align:center; font-size:13px; color:#9C9683;}
+
   main{display:grid; grid-template-columns:340px 1fr; gap:0; height:calc(100vh - 61px);}
   @media (max-width:760px){ main{grid-template-columns:1fr; height:auto;} .detail{border-left:none; border-top:1px solid var(--line);} }
 
@@ -103,8 +111,23 @@
   <span class="count" id="count"></span>
   <span class="spacer"></span>
   <button class="btn-ghost" id="rosterBtn">명단 관리</button>
+  <button class="btn-ghost" id="papersBtn">모둠 신문</button>
   <button class="btn-gold" id="exportBtn">엑셀 내보내기</button>
 </header>
+
+<div class="rosterpanel" id="papersPanel" style="display:none;">
+  <div class="rp-inner">
+    <div class="rp-head">
+      <strong>제출된 모둠 신문 · <span id="ppCode">반 코드 미선택</span></strong>
+      <span class="rp-hint">모둠에서 한 명이 올리면 여기에 나타납니다. 이미지를 누르면 새 창에서 크게 볼 수 있어요.</span>
+    </div>
+    <div class="pp-grid" id="ppGrid"></div>
+    <div class="rp-actions">
+      <span class="rp-status" id="ppStatus"></span>
+      <button class="btn-ghost" id="papersClose">닫기</button>
+    </div>
+  </div>
+</div>
 
 <div class="rosterpanel" id="rosterPanel" style="display:none;">
   <div class="rp-inner">
@@ -136,7 +159,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-  import { getFirestore, collection, query, where, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+  import { getFirestore, collection, query, where, onSnapshot, doc, setDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBcW7NxHLPWaO1OIbDGCDBIBELnw_PmOmk",
@@ -378,6 +401,47 @@
     const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
     clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),1600);
   }
+
+  async function loadPapers(){
+    const code=document.getElementById('code').value.trim();
+    const grid=document.getElementById('ppGrid'), st=document.getElementById('ppStatus');
+    document.getElementById('ppCode').textContent = code ? (code+'반') : '반 코드 미선택';
+    if(!code){ grid.innerHTML=''; st.textContent='먼저 위쪽 반 코드 칸에 반 코드를 입력하세요.'; return; }
+    grid.innerHTML=''; st.textContent='불러오는 중…';
+    try{
+      const gs = await getDocs(query(collection(db,'groups'), where('classCode','==',code)));
+      if(gs.empty){ st.textContent='아직 만들어진 모둠이 없습니다.'; return; }
+      const items = await Promise.all(gs.docs.map(async g=>{
+        const data=g.data();
+        let img=null;
+        try{ const s=await getDoc(doc(db,'groups',g.id,'paper','image')); if(s.exists()) img=s.data(); }catch(e){}
+        return { name:data.name||g.id, members:(data.members||[]).length, img };
+      }));
+      items.sort((a,b)=> String(a.name).localeCompare(String(b.name),'ko'));
+      const done=items.filter(x=>x.img).length;
+      st.textContent = done+' / '+items.length+'모둠 제출';
+      grid.innerHTML = items.map(it=>{
+        if(it.img && it.img.dataUrl){
+          return '<div class="pp-card"><img src="'+it.img.dataUrl+'" alt="'+escapeAttr(it.name)+' 모둠 신문" data-full="1">'
+            + '<div class="pp-meta"><div class="pp-name">'+escapeHtml(it.name)+'</div>'
+            + '<div class="pp-by">제출: '+escapeHtml(it.img.byName||'')+(it.img.at? ' · '+escapeHtml(it.img.at):'')+'</div></div></div>';
+        }
+        return '<div class="pp-card none"><div class="pp-name" style="color:var(--pine-deep)">'+escapeHtml(it.name)+'</div>'
+          + '<div style="margin-top:4px">미제출 ('+it.members+'명)</div></div>';
+      }).join('');
+      grid.querySelectorAll('img[data-full]').forEach(im=>{
+        im.addEventListener('click', ()=>{ const w=window.open(); if(w) w.document.write('<img src="'+im.src+'" style="max-width:100%">'); });
+      });
+    }catch(e){ console.warn(e); st.textContent='불러오기 실패: '+(e.code||e.message||''); }
+  }
+
+  document.getElementById('papersBtn').addEventListener('click', ()=>{
+    const p=document.getElementById('papersPanel');
+    const open = p.style.display==='none';
+    p.style.display = open ? 'block' : 'none';
+    if(open) loadPapers();
+  });
+  document.getElementById('papersClose').addEventListener('click', ()=>{ document.getElementById('papersPanel').style.display='none'; });
 
   document.getElementById('loadBtn').addEventListener('click', ()=> loadClass(document.getElementById('code').value.trim()));
   document.getElementById('code').addEventListener('keydown', e=>{ if(e.key==='Enter') loadClass(e.target.value.trim()); });
