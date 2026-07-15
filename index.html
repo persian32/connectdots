@@ -181,6 +181,18 @@
   .mm-save{flex:1; font-family:var(--sans); font-weight:600; font-size:14px; color:#F7F6F0; background:var(--pine); border:1px solid var(--pine); border-radius:8px; padding:9px 0; cursor:pointer;}
   .mm-save:hover{background:var(--pine-deep);}
   .mm-cancel{font-family:var(--sans); font-weight:600; font-size:14px; color:var(--pine); background:transparent; border:1px solid var(--line-strong); border-radius:8px; padding:9px 14px; cursor:pointer;}
+  .role{border:1px solid var(--line-strong); border-radius:10px; padding:12px 14px; margin-top:12px; background:var(--card);}
+  .role.mine{border-color:var(--pine); background:#F1F3EF;}
+  .role.locked .role-body{opacity:.55;}
+  .role-head{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;}
+  .role-name{font-weight:600; font-size:14.5px; color:var(--pine-deep);}
+  .role-owner{font-size:12px; color:var(--ink-soft);}
+  .role-owner .take{font-family:var(--sans); font-size:12.5px; font-weight:600; color:var(--pine);
+    background:transparent; border:1px dashed var(--line-strong); border-radius:8px; padding:5px 10px; cursor:pointer;}
+  .role-owner .take:hover{border-style:solid; border-color:var(--pine);}
+  .role-owner b{color:var(--marigold);}
+  .role-body{margin-top:6px;}
+
   .np-preview{background:#fff; border:1px solid var(--line-strong); border-radius:10px; padding:16px 17px;
     margin-top:10px; font-family:var(--serif); font-size:14.5px; line-height:1.8; color:var(--ink); white-space:pre-wrap;}
   .np-preview .np-empty{color:#B4AF9E;}
@@ -352,26 +364,52 @@
   <section class="screen" id="s45">
     <p class="eyebrow">5차시 · 모둠 신문</p>
     <h2>우리 모둠 신문 원고</h2>
-    <p class="lead">B4 한 장짜리 신문에 들어갈 글을 씁니다. 공동 지면은 모둠이 함께(실시간), 개인 지면은 각자 자기 몫을 씁니다. 다 쓰면 아래에서 원고를 복사해 캔바·미리캔버스 등에서 꾸며 주세요.</p>
+    <p class="lead">개인 칼럼은 모두가 씁니다. 공동 지면은 한 사람씩 담당을 맡아 채웁니다. 다 쓰면 아래 원고를 복사해 캔바·미리캔버스 등에서 꾸며 주세요.</p>
     <div class="mm-status" id="npStatus">모둠 정보를 불러오는 중…</div>
 
     <div class="card">
-      <p class="subhead">공동 지면 <span class="hint">— 모둠이 함께 씁니다 (실시간)</span></p>
-      <label for="npHead">1면 헤드라인 <span class="hint">— 우리 모둠을 관통하는 한 문장</span> <span class="cnt" id="cntNpHead"></span></label>
-      <input type="text" id="npHead" maxlength="40" placeholder="예: 서로 다른 네 개의 길, 한 사람의 하루에서 만나다">
-      <label for="npSub">부제 <span class="cnt" id="cntNpSub"></span></label>
-      <input type="text" id="npSub" maxlength="70" placeholder="헤드라인을 보충하는 한 줄">
-      <label for="npFusion">융합 코너 <span class="hint">— 서로 다른 분야가 만나는 지점</span> <span class="cnt" id="cntNpFusion"></span></label>
-      <textarea id="npFusion" maxlength="250" placeholder="마인드맵에서 찾은 연결들을 모아, 우리 모둠이 발견한 융합 지점을 기사처럼 정리해요."></textarea>
-      <p class="hint2" id="npSaveNote">입력하면 모둠원 화면에 함께 반영됩니다.</p>
+      <p class="subhead">내 지면 <span class="hint">— 모두가 씁니다 (신문에 내 이름으로 실림)</span></p>
+      <label for="npColumn">개인 칼럼 <span class="hint">— 내 진로 책이 이 질문에 답하는 법</span> <span class="cnt" id="cntNpColumn"></span></label>
+      <textarea id="npColumn" class="tall" maxlength="300" placeholder="내 진로의 눈으로 본 답을 기사처럼 써요. 앞 차시에 쓴 내용을 압축해서 정리하면 됩니다."></textarea>
     </div>
 
     <div class="card">
-      <p class="subhead">내 지면 <span class="hint">— 내가 쓰는 내 몫 (신문에 내 이름으로 실립니다)</span></p>
-      <label for="npColumn">개인 칼럼 <span class="hint">— 내 진로 책이 이 질문에 답하는 법</span> <span class="cnt" id="cntNpColumn"></span></label>
-      <textarea id="npColumn" class="tall" maxlength="300" placeholder="내 진로의 눈으로 본 답을 기사처럼 써요. 앞 차시에 쓴 내용을 압축해서 정리하면 됩니다."></textarea>
-      <label for="npReview">한 줄 서평 <span class="hint">— 내가 읽은 진로 책 추천</span> <span class="cnt" id="cntNpReview"></span></label>
-      <input type="text" id="npReview" maxlength="60" placeholder="예: 아픔이 길이 되려면 — 질병을 개인이 아닌 사회로 보게 하는 책.">
+      <p class="subhead">공동 지면 담당 <span class="hint">— 하나를 맡아 주세요. 맡은 사람만 그 칸을 씁니다.</span></p>
+
+      <div class="role" id="roleHead">
+        <div class="role-head">
+          <span class="role-name">1면 헤드라인·부제</span>
+          <span class="role-owner" id="ownerHead"></span>
+        </div>
+        <div class="role-body" id="bodyHead">
+          <label for="npHead">헤드라인 <span class="hint">— 우리 모둠을 관통하는 한 문장</span> <span class="cnt" id="cntNpHead"></span></label>
+          <input type="text" id="npHead" maxlength="40" placeholder="예: 서로 다른 네 개의 길, 한 사람의 하루에서 만나다">
+          <label for="npSub">부제 <span class="cnt" id="cntNpSub"></span></label>
+          <input type="text" id="npSub" maxlength="70" placeholder="헤드라인을 보충하는 한 줄">
+        </div>
+      </div>
+
+      <div class="role" id="roleFusion">
+        <div class="role-head">
+          <span class="role-name">융합 코너</span>
+          <span class="role-owner" id="ownerFusion"></span>
+        </div>
+        <div class="role-body" id="bodyFusion">
+          <label for="npFusion">서로 다른 분야가 만나는 지점 <span class="cnt" id="cntNpFusion"></span></label>
+          <textarea id="npFusion" maxlength="250" placeholder="마인드맵에서 찾은 연결들을 모아, 우리 모둠이 발견한 융합 지점을 기사처럼 정리해요."></textarea>
+        </div>
+      </div>
+
+      <div class="role" id="roleAd">
+        <div class="role-head">
+          <span class="role-name">광고 지면</span>
+          <span class="role-owner" id="ownerAd"></span>
+        </div>
+        <div class="role-body" id="bodyAd">
+          <label for="npAd">우리 융합 아이디어를 광고로 <span class="hint">— 융합 씨앗을 서비스·제품처럼 홍보</span> <span class="cnt" id="cntNpAd"></span></label>
+          <textarea id="npAd" maxlength="200" placeholder="예: 회복을 설계합니다 — 약사와 건축가가 함께 만든 약국. 기다림이 쉼이 되는 공간."></textarea>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -443,7 +481,7 @@
   // ── 저장 대상 필드 ──
   var FIELD_IDS = ["career","subq","bookTitle","bookAuthor","answer","quote",
     "f1name","f1field","f1view","f2name","f2field","f2view","f3name","f3field","f3view",
-    "seed","c1","c2","cLink","r1","r2","r3","npColumn","npReview"];
+    "seed","c1","c2","cLink","r1","r2","r3","npColumn"];
   var student = {classCode:"", number:"", name:""};
   var roster = null;   // [{no, name}, ...] — 반 확인 시 로드
 
@@ -644,6 +682,7 @@
         row('책이 준 답', ans)+
         row('나눔에서 배운 관점', mergeViews())+
         row('내가 찾은 연결점', myFusionSummary())+
+        row('신문에 쓴 내 칼럼', val('npColumn'))+
         '</dl>';
     }
   }
@@ -678,8 +717,6 @@
     var mv=mergeViews(); if(mv) parts.push('모둠 나눔에서 '+mv+' 등의 관점을 접함.');
     var fusion=myFusionSummary(); if(fusion) parts.push('마인드맵 융합 연결 — '+fusion);
     if(val('seed')) parts.push('융합 씨앗: '+val('seed'));
-    if(val('npColumn')) parts.push('모둠 신문 개인 칼럼 — '+val('npColumn'));
-    if(val('npReview')) parts.push('한 줄 서평: '+val('npReview'));
     var refl=[val('r1'),val('r2'),val('r3')].filter(Boolean);
     if(refl.length) parts.push('성찰 — '+refl.join(' '));
     document.getElementById('assembled').value = parts.join(' ');
@@ -823,7 +860,12 @@
 
   // ── 5차시 모둠 신문 ──
   var npUnsubs=null, npPaper={}, npMembersData={}, npApplying=false, npTimer=null;
-  var NP_LIMITS={npHead:40, npSub:70, npFusion:250, npColumn:300, npReview:60};
+  var NP_LIMITS={npHead:40, npSub:70, npFusion:250, npAd:200, npColumn:300};
+  var NP_ROLES=[
+    {key:'head',   label:'1면 헤드라인·부제', fields:['npHead','npSub'], card:'roleHead',   owner:'ownerHead'},
+    {key:'fusion', label:'융합 코너',        fields:['npFusion'],        card:'roleFusion', owner:'ownerFusion'},
+    {key:'ad',     label:'광고 지면',        fields:['npAd'],            card:'roleAd',     owner:'ownerAd'}
+  ];
 
   function npCount(id){
     var el=document.getElementById(id), c=document.getElementById('cnt'+id.charAt(0).toUpperCase()+id.slice(1));
@@ -834,22 +876,48 @@
   }
   function npCountAll(){ Object.keys(NP_LIMITS).forEach(npCount); }
 
+  function npMyRole(){
+    var roles=npPaper.roles||{};
+    for(var i=0;i<NP_ROLES.length;i++){ if(String(roles[NP_ROLES[i].key]&&roles[NP_ROLES[i].key].number)===String(student.number)) return NP_ROLES[i].key; }
+    return null;
+  }
+  function npRenderRoles(){
+    var roles=npPaper.roles||{}, mine=npMyRole();
+    NP_ROLES.forEach(function(r){
+      var owner=roles[r.key], card=document.getElementById(r.card), ownerEl=document.getElementById(r.owner);
+      var isMine = owner && String(owner.number)===String(student.number);
+      card.classList.toggle('mine', !!isMine);
+      card.classList.toggle('locked', !!owner && !isMine);
+      if(owner){
+        ownerEl.innerHTML = isMine ? '<b>내가 담당</b> <button class="take" onclick="npDropRole(\''+r.key+'\')">담당 내려놓기</button>'
+                                   : '담당: '+escHtml(owner.name||'');
+      } else {
+        ownerEl.innerHTML = mine ? '<span style="color:#B4AF9E">비어 있음</span>'
+                                 : '<button class="take" onclick="npTakeRole(\''+r.key+'\')">이 담당 맡기</button>';
+      }
+      r.fields.forEach(function(f){
+        var el=document.getElementById(f);
+        if(el) el.disabled = !isMine;
+      });
+    });
+  }
+
   function npEnter(){
     var st=document.getElementById('npStatus');
     if(!student.group){ st.textContent='모둠 정보가 없습니다. 처음 화면부터 다시 시작해 주세요.'; return; }
     if(!window.cloud || !window.cloud.ready){ st.textContent='연결 대기 중입니다…'; return; }
     if(npUnsubs){ npUnsubs(); npUnsubs=null; }
-    st.innerHTML='모둠 <b>'+escHtml(student.group.name)+'</b> · 공동 지면은 함께, 내 지면은 각자';
+    st.innerHTML='모둠 <b>'+escHtml(student.group.name)+'</b> · 칼럼은 모두, 공동 지면은 담당자가';
     npCountAll();
     var unsubPaper = window.cloud.subscribePaper(student.classCode, student.group.key, function(p){
       npPaper=p||{};
       npApplying=true;
-      ['npHead','npSub','npFusion'].forEach(function(k){
+      ['npHead','npSub','npFusion','npAd'].forEach(function(k){
         var el=document.getElementById(k);
         if(el && document.activeElement!==el && (npPaper[k]||'')!==el.value) el.value=npPaper[k]||'';
       });
       npApplying=false;
-      npCountAll(); npRenderPreview();
+      npRenderRoles(); npCountAll(); npRenderPreview();
     });
     var unsubMembers = window.cloud.subscribeGroupResponses(student.classCode, student.group.key, function(map){
       npMembersData=map||{}; npRenderPreview();
@@ -857,49 +925,59 @@
     npUnsubs=function(){ try{unsubPaper();}catch(e){} try{unsubMembers();}catch(e){} };
   }
 
+  function npTakeRole(key){
+    if(npMyRole()){ alert('이미 다른 담당을 맡고 있어요. 먼저 그 담당을 내려놓아 주세요.'); return; }
+    window.cloud.takeRole(student.classCode, student.group.key, key, {number:String(student.number), name:student.name})
+      .catch(function(e){
+        if(e && e.code==='taken') alert('방금 다른 친구가 이 담당을 맡았어요.');
+        else { console.warn(e); alert('담당 맡기에 실패했어요. 다시 시도해 주세요.'); }
+      });
+  }
+  function npDropRole(key){
+    if(!confirm('이 담당을 내려놓을까요? 지금 쓴 내용은 남고, 다른 친구가 맡을 수 있게 됩니다.')) return;
+    window.cloud.dropRole(student.classCode, student.group.key, key, String(student.number))
+      .catch(function(e){ console.warn(e); alert('담당 내려놓기에 실패했어요.'); });
+  }
+
   function npPaperChanged(){
     if(npApplying) return;
-    npCountAll();
+    npCountAll(); npRenderPreview();
     clearTimeout(npTimer);
     npTimer=setTimeout(function(){
       if(!student.group || !window.cloud || !window.cloud.ready) return;
-      window.cloud.savePaper(student.classCode, student.group.key, {
-        npHead: val('npHead'), npSub: val('npSub'), npFusion: val('npFusion')
-      }).catch(function(e){ console.warn('paper save', e); });
+      var mine=npMyRole(); if(!mine) return;
+      var payload={};
+      NP_ROLES.forEach(function(r){ if(r.key===mine) r.fields.forEach(function(f){ payload[f]=val(f); }); });
+      window.cloud.savePaper(student.classCode, student.group.key, payload)
+        .catch(function(e){ console.warn('paper save', e); });
     }, 600);
   }
-  ['npHead','npSub','npFusion'].forEach(function(id){
+  ['npHead','npSub','npFusion','npAd'].forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.addEventListener('input', npPaperChanged);
   });
-  ['npColumn','npReview'].forEach(function(id){
-    var el=document.getElementById(id);
-    if(el) el.addEventListener('input', function(){ npCount(id); npRenderPreview(); });
-  });
+  var npColEl=document.getElementById('npColumn');
+  if(npColEl) npColEl.addEventListener('input', function(){ npCount('npColumn'); npRenderPreview(); });
 
   function npRenderPreview(){
     var box=document.getElementById('npPreview'); if(!box) return;
-    var head=(npPaper.npHead||val('npHead')||'').trim();
-    var sub=(npPaper.npSub||val('npSub')||'').trim();
-    var fusion=(npPaper.npFusion||val('npFusion')||'').trim();
+    var head=(npPaper.npHead||'').trim(), sub=(npPaper.npSub||'').trim();
+    var fusion=(npPaper.npFusion||'').trim(), ad=(npPaper.npAd||'').trim();
     var out=[];
     out.push('【 1면 헤드라인 】\n'+(head||'(아직 비어 있음)')+(sub?'\n— '+sub:''));
     out.push('\n【 융합 코너 】\n'+(fusion||'(아직 비어 있음)'));
     var mems = mmMembers.length ? mmMembers : Object.keys(npMembersData).map(function(k){ return {number:k, name:(npMembersData[k]||{}).name||k}; });
-    var cols=[], revs=[];
+    var cols=[];
     mems.forEach(function(m){
       var isMe = String(m.number)===String(student.number);
-      var d = isMe ? {npColumn:val('npColumn'), npReview:val('npReview'), career:val('career')}
+      var d = isMe ? {npColumn:val('npColumn'), career:val('career')}
                    : ((npMembersData[String(m.number)]||{}).data||{});
       var nm = m.name || (npMembersData[String(m.number)]||{}).name || '';
-      var career=(d.career||'').trim();
-      var col=(d.npColumn||'').trim();
-      var rev=(d.npReview||'').trim();
+      var career=(d.career||'').trim(), col=(d.npColumn||'').trim();
       cols.push('· '+nm+(career?' ('+career+')':'')+'\n'+(col||'(아직 안 씀)'));
-      revs.push('· '+nm+': '+(rev||'(아직 안 씀)'));
     });
     out.push('\n【 개인 칼럼 】\n'+cols.join('\n\n'));
-    out.push('\n【 한 줄 서평 】\n'+revs.join('\n'));
+    out.push('\n【 광고 】\n'+(ad||'(아직 비어 있음)'));
     box.textContent = out.join('\n');
   }
 
@@ -1061,6 +1139,33 @@
       async savePaper(classCode, groupKey, payload){
         await setDoc(doc(db, "groups", this.gidOf(classCode, groupKey), "paper", "main"),
           Object.assign({}, payload, { updatedAt: serverTimestamp() }), { merge:true });
+      },
+      async takeRole(classCode, groupKey, roleKey, member){
+        const ref = doc(db, "groups", this.gidOf(classCode, groupKey), "paper", "main");
+        await runTransaction(db, async (tx)=>{
+          const s = await tx.get(ref);
+          const cur = s.exists() ? (s.data().roles||{}) : {};
+          if(cur[roleKey] && String(cur[roleKey].number)!==String(member.number)){
+            const e=new Error("taken"); e.code="taken"; throw e;
+          }
+          const roles = Object.assign({}, cur);
+          roles[roleKey] = { number:String(member.number), name:member.name };
+          if(s.exists()) tx.update(ref, { roles, updatedAt: serverTimestamp() });
+          else tx.set(ref, { roles, updatedAt: serverTimestamp() });
+        });
+      },
+      async dropRole(classCode, groupKey, roleKey, number){
+        const ref = doc(db, "groups", this.gidOf(classCode, groupKey), "paper", "main");
+        await runTransaction(db, async (tx)=>{
+          const s = await tx.get(ref);
+          if(!s.exists()) return;
+          const cur = s.data().roles||{};
+          if(cur[roleKey] && String(cur[roleKey].number)===String(number)){
+            const roles = Object.assign({}, cur);
+            delete roles[roleKey];
+            tx.update(ref, { roles, updatedAt: serverTimestamp() });
+          }
+        });
       },
       subscribeGroupResponses(classCode, groupKey, cb){
         const q2 = query(collection(db, "responses"),
